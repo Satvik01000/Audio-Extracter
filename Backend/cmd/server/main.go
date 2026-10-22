@@ -28,6 +28,20 @@ func main() {
 	mux := http.NewServeMux()
 	extractorHandler.RegisterRoutes(mux)
 
+	// Serve Frontend static files
+	frontendDir := "./Frontend"
+	if _, err := os.Stat(frontendDir); os.IsNotExist(err) {
+		if _, err := os.Stat("../Frontend"); err == nil {
+			frontendDir = "../Frontend"
+		}
+	}
+	if _, err := os.Stat(frontendDir); err == nil {
+		slog.Info("Serving frontend static files", "dir", frontendDir)
+		mux.Handle("/", http.FileServer(http.Dir(frontendDir)))
+	} else {
+		slog.Warn("Frontend directory not found", "dir", frontendDir)
+	}
+
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: mux,

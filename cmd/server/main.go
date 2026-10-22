@@ -10,16 +10,23 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/Satvik01000/Audio-Extracter/internal/extractor"
 )
 
 func main() {
-	_, err := exec.LookPath("ffmpeg")
+	ffmpegPath, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		slog.Error("ffmpeg not found", "error", err)
 		os.Exit(1)
 	}
+	slog.Info("ffmpeg binary found", "path", ffmpegPath)
+
+	extractorService := extractor.NewService(ffmpegPath)
+	extractorHandler := extractor.NewHandler(extractorService)
 
 	mux := http.NewServeMux()
+	extractorHandler.RegisterRoutes(mux)
 
 	server := &http.Server{
 		Addr:    ":8080",

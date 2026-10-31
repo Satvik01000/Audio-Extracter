@@ -10,16 +10,37 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/Satvik01000/Audio-Extracter/internal/extractor"
 )
 
 func main() {
-	_, err := exec.LookPath("ffmpeg")
+	ffmpegPath, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		slog.Error("ffmpeg not found", "error", err)
 		os.Exit(1)
 	}
+	slog.Info("ffmpeg binary found", "path", ffmpegPath)
+
+	extractorService := extractor.NewService(ffmpegPath)
+	extractorHandler := extractor.NewHandler(extractorService)
 
 	mux := http.NewServeMux()
+	extractorHandler.RegisterRoutes(mux)
+
+	// Serve Frontend static files
+	frontendDir := "./Frontend"
+	if _, err := os.Stat(frontendDir); os.IsNotExist(err) {
+		if _, err := os.Stat("../Frontend"); err == nil {
+			frontendDir = "../Frontend"
+		}
+	}
+	if _, err := os.Stat(frontendDir); err == nil {
+		slog.Info("Serving frontend static files", "dir", frontendDir)
+		mux.Handle("/", http.FileServer(http.Dir(frontendDir)))
+	} else {
+		slog.Warn("Frontend directory not found", "dir", frontendDir)
+	}
 
 	server := &http.Server{
 		Addr:    ":8080",

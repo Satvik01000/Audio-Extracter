@@ -1,0 +1,17 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "Aura",
+  "outputfilename": "Aura",
+  "frontend:dir": "./frontend/src",
+  "wailsjsdir": "./frontend/src",
+  "author": {
+    "name": "Satvik"
+  },
+  "info": {
+    "companyName": "Aura",
+    "productName": "Aura",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright 2026",
+    "comments": "Studio-grade minimalist audio extraction"
+  }
+}

@@ -1,46 +1,76 @@
 /**
- * AuraAudio — Pure Vanilla JavaScript Controller
- * Interacts directly with the Go backend at http://localhost:8080/extract
+ * Audio Extractor — Minimalist Application Frontend
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Config: relative path '/extract' when served on port 8080, fallback to 'http://localhost:8080/extract' if opened from file://
-  const BACKEND_URL = window.location.origin && window.location.origin.startsWith('http') 
-    ? '/extract' 
+  const BACKEND_URL = window.location.origin && window.location.origin.startsWith('http')
+    ? '/extract'
     : 'http://localhost:8080/extract';
 
-  // DOM Elements - Upload Zone
+  // Status
+  const statusText = document.getElementById('status-text');
+
+  // Upload & File Bar
   const dropZone = document.getElementById('drop-zone');
   const fileInput = document.getElementById('file-input');
   const uploadPrompt = document.getElementById('upload-prompt');
   const fileLoadedView = document.getElementById('file-loaded-view');
   const fileNameText = document.getElementById('file-name-text');
   const fileSizeText = document.getElementById('file-size-text');
+  const changeFileBtn = document.getElementById('change-file-btn');
   const removeFileBtn = document.getElementById('remove-file-btn');
 
-  // DOM Elements - Trim & Workspace
+  // Hidden Media Engine & Readouts
   const trimWorkspace = document.getElementById('trim-workspace');
   const videoPreview = document.getElementById('video-preview');
   const currentPlayheadDisplay = document.getElementById('current-playhead-display');
   const totalDurationDisplay = document.getElementById('total-duration-display');
+
+  // Transport & Timeline
+  const waveformContainer = document.getElementById('waveform-container');
+  const waveformCanvas = document.getElementById('waveform-canvas');
+  const timeRuler = document.getElementById('time-ruler');
+  const dimmedLeft = document.getElementById('dimmed-left');
+  const dimmedRight = document.getElementById('dimmed-right');
+  const selectedRegion = document.getElementById('selected-region');
+  const handleLeft = document.getElementById('handle-left');
+  const handleRight = document.getElementById('handle-right');
+  const tooltipLeft = document.getElementById('tooltip-left');
+  const tooltipRight = document.getElementById('tooltip-right');
+  const timelinePlayhead = document.getElementById('timeline-playhead');
+
+  const playSelectionBtn = document.getElementById('play-selection-btn');
+  const playSelectionLabel = document.getElementById('play-selection-label');
+  const loopSelectionBtn = document.getElementById('loop-selection-btn');
+  const mutePreviewBtn = document.getElementById('mute-preview-btn');
+  const rangeDurationText = document.getElementById('range-duration-text');
+  const rangeLengthText = document.getElementById('range-length-text');
+
+  // Inputs, Nudges & Presets
   const beginInput = document.getElementById('begin-input');
   const endInput = document.getElementById('end-input');
   const setBeginBtn = document.getElementById('set-begin-playhead-btn');
   const setEndBtn = document.getElementById('set-end-playhead-btn');
+  const nudgeStartMinus = document.getElementById('nudge-start-minus');
+  const nudgeStartPlus = document.getElementById('nudge-start-plus');
+  const nudgeEndMinus = document.getElementById('nudge-end-minus');
+  const nudgeEndPlus = document.getElementById('nudge-end-plus');
+
   const segmentSummary = document.getElementById('segment-summary');
-  
-  // Presets
   const presetFull = document.getElementById('preset-full');
   const preset30s = document.getElementById('preset-30s');
   const preset60s = document.getElementById('preset-60s');
   const presetClear = document.getElementById('preset-clear');
 
-  // Primary Action & Processing View
+  // Extract Action & Processing
   const extractBtn = document.getElementById('extract-btn');
+  const extractBtnText = document.getElementById('extract-btn-text');
+  const saveLocationToggle = document.getElementById('save-location-toggle');
+  const saveOptionHint = document.getElementById('save-option-hint');
   const processingView = document.getElementById('processing-view');
   const processingMsg = document.getElementById('processing-msg');
 
-  // Result & Audio Player View
+  // Result View
   const resultView = document.getElementById('result-view');
   const resultFilenameDisplay = document.getElementById('result-filename-display');
   const extractedAudio = document.getElementById('extracted-audio');
@@ -51,30 +81,39 @@ document.addEventListener('DOMContentLoaded', () => {
   const audioTotalTime = document.getElementById('audio-total-time');
   const audioSeekSlider = document.getElementById('audio-seek-slider');
   const volumeToggleBtn = document.getElementById('volume-toggle-btn');
+  const saveResultBtn = document.getElementById('save-result-btn');
+  const saveResultText = document.getElementById('save-result-text');
   const downloadAudioLink = document.getElementById('download-audio-link');
   const resetWorkspaceBtn = document.getElementById('reset-workspace-btn');
+  const backToTrimBtn = document.getElementById('back-to-trim-btn');
 
-  // Fallback Native Form
+  // Native Form Fallback
   const nativeForm = document.getElementById('native-extract-form');
   const formFileInput = document.getElementById('form-file-input');
   const formBeginInput = document.getElementById('form-begin-input');
   const formEndInput = document.getElementById('form-end-input');
 
-  // Toast Container
   const toastContainer = document.getElementById('toast-container');
 
   // State
   let currentFile = null;
   let videoObjectURL = null;
   let extractedAudioObjectURL = null;
+  let lastExtractedBlob = null;
+  let lastOutputFilename = 'output.mp3';
+  let totalMediaDuration = 0;
+  let beginSeconds = 0;
+  let endSeconds = 0;
+  let isTestingSelection = false;
+  let isLoopingSelection = false;
+  let waveformPeaks = [];
 
   // =========================================================================
-  // Drag and Drop & File Upload Handling
+  // File Selection & Drag-and-Drop
   // =========================================================================
 
   dropZone.addEventListener('click', (e) => {
-    // Only trigger file picker if clicked outside the remove button
-    if (e.target.closest('#remove-file-btn')) return;
+    if (e.target.closest('#remove-file-btn') || e.target.closest('#change-file-btn')) return;
     if (!currentFile) {
       fileInput.click();
     }
@@ -87,16 +126,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  ['dragenter', 'dragover'].forEach(eventName => {
-    dropZone.addEventListener(eventName, (e) => {
+  changeFileBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    fileInput.click();
+  });
+
+  removeFileBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    resetAll();
+  });
+
+  ['dragenter', 'dragover'].forEach(evt => {
+    dropZone.addEventListener(evt, (e) => {
       e.preventDefault();
       e.stopPropagation();
       dropZone.classList.add('dragover');
     });
   });
 
-  ['dragleave', 'drop'].forEach(eventName => {
-    dropZone.addEventListener(eventName, (e) => {
+  ['dragleave', 'drop'].forEach(evt => {
+    dropZone.addEventListener(evt, (e) => {
       e.preventDefault();
       e.stopPropagation();
       dropZone.classList.remove('dragover');
@@ -116,21 +165,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  removeFileBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    resetAll();
-  });
-
   function handleFileSelected(file) {
+    stopTestingSelection();
     currentFile = file;
 
-    // Display file meta
     fileNameText.textContent = file.name;
     fileSizeText.textContent = formatBytes(file.size);
     uploadPrompt.classList.add('hidden');
     fileLoadedView.classList.remove('hidden');
 
-    // Create object URL for instant preview
     if (videoObjectURL) {
       URL.revokeObjectURL(videoObjectURL);
     }
@@ -138,127 +181,635 @@ document.addEventListener('DOMContentLoaded', () => {
     videoPreview.src = videoObjectURL;
     videoPreview.load();
 
-    // Reset inputs
-    beginInput.value = '';
-    endInput.value = '';
-    updateSegmentSummary();
-
-    // Hide any previous results
     resultView.classList.add('hidden');
     processingView.classList.add('hidden');
     trimWorkspace.classList.remove('hidden');
+    setStatus('loaded');
+
+    extractWaveformFromFile(file);
+  }
+
+  function setStatus(state) {
+    if ( statusText ) {
+      statusText.textContent = state;
+    }
   }
 
   // =========================================================================
-  // Video Player Preview & Playhead Tracking
+  // Hidden Media Engine Synchronization
   // =========================================================================
 
   videoPreview.addEventListener('loadedmetadata', () => {
-    const totalDuration = videoPreview.duration;
-    totalDurationDisplay.textContent = formatSecondsToTimestamp(totalDuration);
-    currentPlayheadDisplay.textContent = formatSecondsToTimestamp(0);
-    updateSegmentSummary();
+    totalMediaDuration = videoPreview.duration || 1;
+    totalDurationDisplay.textContent = formatSecondsToMMSS(totalMediaDuration);
+    currentPlayheadDisplay.textContent = formatSecondsToMMSS(0);
+
+    beginSeconds = 0;
+    endSeconds = totalMediaDuration;
+    beginInput.value = '0s';
+    endInput.value = `${Math.ceil(totalMediaDuration)}s`;
+
+    initTimeRuler(totalMediaDuration);
+    setActivePreset(presetFull);
+    updateTimelineUI();
   });
 
   videoPreview.addEventListener('timeupdate', () => {
-    currentPlayheadDisplay.textContent = formatSecondsToTimestamp(videoPreview.currentTime);
+    const curr = videoPreview.currentTime;
+    currentPlayheadDisplay.textContent = formatSecondsToMMSS(curr);
+
+    if (totalMediaDuration > 0) {
+      const playRatio = Math.max(0, Math.min(curr / totalMediaDuration, 1));
+      timelinePlayhead.style.left = `${playRatio * 100}%`;
+    }
+
+    if (isTestingSelection) {
+      if (curr >= endSeconds || curr < beginSeconds - 0.25) {
+        if (isLoopingSelection) {
+          videoPreview.currentTime = beginSeconds;
+        } else {
+          stopTestingSelection();
+          videoPreview.currentTime = beginSeconds;
+        }
+      }
+    }
   });
 
-  // Use Playhead Buttons
-  setBeginBtn.addEventListener('click', () => {
-    if (!videoPreview.duration) return;
-    const sec = Math.floor(videoPreview.currentTime);
-    beginInput.value = `${sec}s`;
-    setActivePreset(null);
+  videoPreview.addEventListener('ended', () => {
+    if (isLoopingSelection && isTestingSelection) {
+      videoPreview.currentTime = beginSeconds;
+      videoPreview.play();
+    } else {
+      stopTestingSelection();
+    }
+  });
+
+  // =========================================================================
+  // Dual-Pointer Timeline Logic
+  // =========================================================================
+
+  function updateTimelineUI() {
+    if (!totalMediaDuration || totalMediaDuration <= 0) return;
+
+    const startRatio = Math.max(0, Math.min(beginSeconds / totalMediaDuration, 1));
+    const endRatio = Math.max(startRatio, Math.min(endSeconds / totalMediaDuration, 1));
+
+    handleLeft.style.left = `${startRatio * 100}%`;
+    handleRight.style.left = `${endRatio * 100}%`;
+
+    dimmedLeft.style.width = `${startRatio * 100}%`;
+    dimmedRight.style.width = `${(1 - endRatio) * 100}%`;
+
+    selectedRegion.style.left = `${startRatio * 100}%`;
+    selectedRegion.style.width = `${Math.max(0, (endRatio - startRatio) * 100)}%`;
+
+    tooltipLeft.textContent = formatSecondsToMMSS(beginSeconds);
+    tooltipRight.textContent = formatSecondsToMMSS(endSeconds);
+
+    // Prevent pointer heads from colliding when pointers are close together
+    const startHead = handleLeft.querySelector('.pointer-head');
+    const endHead = handleRight.querySelector('.pointer-head');
+    if (startHead && endHead) {
+      if (endRatio - startRatio < 0.14) {
+        startHead.style.transform = 'translateX(-45%)';
+        endHead.style.transform = 'translateX(45%)';
+      } else {
+        startHead.style.transform = startRatio < 0.06 ? 'translateX(20%)' : 'translateX(0)';
+        endHead.style.transform = endRatio > 0.94 ? 'translateX(-20%)' : 'translateX(0)';
+      }
+    }
+
+    const diff = Math.max(0, endSeconds - beginSeconds);
+    rangeDurationText.textContent = `${formatSecondsToMMSS(beginSeconds)} → ${formatSecondsToMMSS(endSeconds)}`;
+    rangeLengthText.textContent = formatSecondsToReadable(diff);
+
     updateSegmentSummary();
-    showToast(`Start position set to ${sec}s`, 'success');
+    drawWaveform();
+  }
+
+  // Pointer 1: START
+  handleLeft.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    handleLeft.setPointerCapture(e.pointerId);
+    handleLeft.classList.add('dragging');
+    stopTestingSelection();
+  });
+
+  handleLeft.addEventListener('pointermove', (e) => {
+    if (!handleLeft.hasPointerCapture(e.pointerId)) return;
+    const rect = waveformContainer.getBoundingClientRect();
+    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const ratio = x / rect.width;
+    const maxBegin = Math.max(0, endSeconds - 0.2);
+    beginSeconds = Math.max(0, Math.min(ratio * totalMediaDuration, maxBegin));
+
+    beginInput.value = `${beginSeconds.toFixed(1)}s`;
+    videoPreview.currentTime = beginSeconds;
+    setActivePreset(null);
+    updateTimelineUI();
+  });
+
+  const onLeftRelease = () => {
+    if (!handleLeft.classList.contains('dragging')) return;
+    handleLeft.classList.remove('dragging');
+    beginInput.value = `${Math.round(beginSeconds)}s`;
+    updateTimelineUI();
+  };
+  handleLeft.addEventListener('lostpointercapture', onLeftRelease);
+  handleLeft.addEventListener('pointerup', onLeftRelease);
+  handleLeft.addEventListener('pointercancel', onLeftRelease);
+
+  handleLeft.addEventListener('keydown', (e) => {
+    const step = e.shiftKey ? 5 : 1;
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      nudgeStart(-step);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      nudgeStart(step);
+    }
+  });
+
+  // Pointer 2: END
+  handleRight.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    handleRight.setPointerCapture(e.pointerId);
+    handleRight.classList.add('dragging');
+    stopTestingSelection();
+  });
+
+  handleRight.addEventListener('pointermove', (e) => {
+    if (!handleRight.hasPointerCapture(e.pointerId)) return;
+    const rect = waveformContainer.getBoundingClientRect();
+    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const ratio = x / rect.width;
+    const minEnd = Math.min(totalMediaDuration, beginSeconds + 0.2);
+    endSeconds = Math.min(totalMediaDuration, Math.max(ratio * totalMediaDuration, minEnd));
+
+    endInput.value = `${endSeconds.toFixed(1)}s`;
+    videoPreview.currentTime = endSeconds;
+    setActivePreset(null);
+    updateTimelineUI();
+  });
+
+  const onRightRelease = () => {
+    if (!handleRight.classList.contains('dragging')) return;
+    handleRight.classList.remove('dragging');
+    endInput.value = `${Math.round(endSeconds)}s`;
+    updateTimelineUI();
+  };
+  handleRight.addEventListener('lostpointercapture', onRightRelease);
+  handleRight.addEventListener('pointerup', onRightRelease);
+  handleRight.addEventListener('pointercancel', onRightRelease);
+
+  handleRight.addEventListener('keydown', (e) => {
+    const step = e.shiftKey ? 5 : 1;
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      nudgeEnd(-step);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      nudgeEnd(step);
+    }
+  });
+
+  // Drag Selected Window or Click to Seek
+  let windowDragStartX = 0;
+  let initialBegin = 0;
+  let initialEnd = 0;
+  let hasDraggedSelection = false;
+
+  selectedRegion.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('.drag-pointer')) return;
+    e.preventDefault();
+    selectedRegion.setPointerCapture(e.pointerId);
+    selectedRegion.classList.add('dragging');
+    windowDragStartX = e.clientX;
+    initialBegin = beginSeconds;
+    initialEnd = endSeconds;
+    hasDraggedSelection = false;
+    stopTestingSelection();
+  });
+
+  selectedRegion.addEventListener('pointermove', (e) => {
+    if (!selectedRegion.hasPointerCapture(e.pointerId)) return;
+    const rect = waveformContainer.getBoundingClientRect();
+    const deltaX = e.clientX - windowDragStartX;
+    if (Math.abs(deltaX) > 3) {
+      hasDraggedSelection = true;
+    }
+    if (!hasDraggedSelection) return;
+
+    const deltaSec = (deltaX / rect.width) * totalMediaDuration;
+    const span = initialEnd - initialBegin;
+
+    let newBegin = initialBegin + deltaSec;
+    let newEnd = initialEnd + deltaSec;
+
+    if (newBegin < 0) {
+      newBegin = 0;
+      newEnd = Math.min(totalMediaDuration, span);
+    }
+    if (newEnd > totalMediaDuration) {
+      newEnd = totalMediaDuration;
+      newBegin = Math.max(0, totalMediaDuration - span);
+    }
+
+    beginSeconds = newBegin;
+    endSeconds = newEnd;
+    beginInput.value = `${Math.round(beginSeconds)}s`;
+    endInput.value = `${Math.round(endSeconds)}s`;
+    videoPreview.currentTime = beginSeconds;
+    setActivePreset(null);
+    updateTimelineUI();
+  });
+
+  const onSelectionRelease = () => {
+    if (!selectedRegion.classList.contains('dragging')) return;
+    selectedRegion.classList.remove('dragging');
+
+    if (!hasDraggedSelection && totalMediaDuration > 0) {
+      const rect = waveformContainer.getBoundingClientRect();
+      const clickX = Math.max(0, Math.min(windowDragStartX - rect.left, rect.width));
+      videoPreview.currentTime = (clickX / rect.width) * totalMediaDuration;
+    }
+  };
+  selectedRegion.addEventListener('lostpointercapture', onSelectionRelease);
+  selectedRegion.addEventListener('pointerup', onSelectionRelease);
+  selectedRegion.addEventListener('pointercancel', onSelectionRelease);
+
+  // Click Outside Selection on Track to Seek Playhead
+  waveformContainer.addEventListener('click', (e) => {
+    if (e.target.closest('.drag-pointer') || e.target.closest('.selected-region')) return;
+    const rect = waveformContainer.getBoundingClientRect();
+    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    videoPreview.currentTime = (x / rect.width) * totalMediaDuration;
+  });
+
+  // =========================================================================
+  // Transport Controls (Play Selection, Loop, Mute, Spacebar)
+  // =========================================================================
+
+  playSelectionBtn.addEventListener('click', () => {
+    if (isTestingSelection) {
+      stopTestingSelection();
+    } else {
+      startTestingSelection();
+    }
+  });
+
+  loopSelectionBtn.addEventListener('click', () => {
+    isLoopingSelection = !isLoopingSelection;
+    loopSelectionBtn.classList.toggle('active', isLoopingSelection);
+  });
+
+  mutePreviewBtn.addEventListener('click', () => {
+    videoPreview.muted = !videoPreview.muted;
+    mutePreviewBtn.querySelector('.icon-vol-on').classList.toggle('hidden', videoPreview.muted);
+    mutePreviewBtn.querySelector('.icon-vol-off').classList.toggle('hidden', !videoPreview.muted);
+  });
+
+  // Spacebar shortcut for previewing selection
+  document.addEventListener('keydown', (e) => {
+    if (e.key === ' ' && !['INPUT', 'TEXTAREA', 'BUTTON'].includes(document.activeElement?.tagName)) {
+      if (currentFile && !trimWorkspace.classList.contains('hidden')) {
+        e.preventDefault();
+        playSelectionBtn.click();
+      }
+    }
+  });
+
+  function startTestingSelection() {
+    if (!totalMediaDuration) return;
+    isTestingSelection = true;
+    playSelectionBtn.classList.add('playing');
+    playSelectionBtn.querySelector('.icon-play').classList.add('hidden');
+    playSelectionBtn.querySelector('.icon-pause').classList.remove('hidden');
+    if (playSelectionLabel) playSelectionLabel.textContent = 'Pause';
+
+    if (videoPreview.currentTime < beginSeconds || videoPreview.currentTime >= endSeconds - 0.15) {
+      videoPreview.currentTime = beginSeconds;
+    }
+    videoPreview.play();
+    setStatus('playing');
+  }
+
+  function stopTestingSelection() {
+    if (!isTestingSelection) return;
+    isTestingSelection = false;
+    playSelectionBtn.classList.remove('playing');
+    playSelectionBtn.querySelector('.icon-play').classList.remove('hidden');
+    playSelectionBtn.querySelector('.icon-pause').classList.add('hidden');
+    if (playSelectionLabel) playSelectionLabel.textContent = 'Play Selection';
+    videoPreview.pause();
+    if (currentFile) setStatus('loaded');
+  }
+
+  // =========================================================================
+  // Inputs, Nudges & Presets
+  // =========================================================================
+
+  function nudgeStart(delta) {
+    if (!totalMediaDuration) return;
+    beginSeconds = Math.max(0, Math.min(beginSeconds + delta, endSeconds - 0.2));
+    beginInput.value = `${Math.round(beginSeconds)}s`;
+    videoPreview.currentTime = beginSeconds;
+    setActivePreset(null);
+    updateTimelineUI();
+  }
+
+  function nudgeEnd(delta) {
+    if (!totalMediaDuration) return;
+    endSeconds = Math.min(totalMediaDuration, Math.max(endSeconds + delta, beginSeconds + 0.2));
+    endInput.value = `${Math.round(endSeconds)}s`;
+    videoPreview.currentTime = endSeconds;
+    setActivePreset(null);
+    updateTimelineUI();
+  }
+
+  nudgeStartMinus.addEventListener('click', () => nudgeStart(-1));
+  nudgeStartPlus.addEventListener('click', () => nudgeStart(1));
+  nudgeEndMinus.addEventListener('click', () => nudgeEnd(-1));
+  nudgeEndPlus.addEventListener('click', () => nudgeEnd(1));
+
+  setBeginBtn.addEventListener('click', () => {
+    if (!totalMediaDuration) return;
+    beginSeconds = Math.max(0, Math.min(videoPreview.currentTime, endSeconds - 0.2));
+    beginInput.value = `${Math.round(beginSeconds)}s`;
+    setActivePreset(null);
+    updateTimelineUI();
   });
 
   setEndBtn.addEventListener('click', () => {
-    if (!videoPreview.duration) return;
-    const sec = Math.ceil(videoPreview.currentTime);
-    endInput.value = `${sec}s`;
+    if (!totalMediaDuration) return;
+    endSeconds = Math.min(totalMediaDuration, Math.max(videoPreview.currentTime, beginSeconds + 0.2));
+    endInput.value = `${Math.round(endSeconds)}s`;
     setActivePreset(null);
-    updateSegmentSummary();
-    showToast(`End position set to ${sec}s`, 'success');
+    updateTimelineUI();
   });
 
-  beginInput.addEventListener('input', () => {
+  beginInput.addEventListener('change', () => {
+    const sec = parseDurationToSeconds(beginInput.value);
+    if (!isNaN(sec) && sec >= 0 && sec < totalMediaDuration) {
+      beginSeconds = Math.min(sec, endSeconds - 0.2);
+      beginInput.value = `${Math.round(beginSeconds)}s`;
+      videoPreview.currentTime = beginSeconds;
+    }
     setActivePreset(null);
-    updateSegmentSummary();
+    updateTimelineUI();
   });
 
-  endInput.addEventListener('input', () => {
+  endInput.addEventListener('change', () => {
+    const sec = parseDurationToSeconds(endInput.value);
+    if (!isNaN(sec) && sec > 0 && sec <= totalMediaDuration) {
+      endSeconds = Math.max(sec, beginSeconds + 0.2);
+      endInput.value = `${Math.round(endSeconds)}s`;
+      videoPreview.currentTime = endSeconds;
+    }
     setActivePreset(null);
-    updateSegmentSummary();
+    updateTimelineUI();
   });
 
-  // Presets
   presetFull.addEventListener('click', () => {
-    beginInput.value = '';
-    endInput.value = '';
+    beginSeconds = 0;
+    endSeconds = totalMediaDuration;
+    beginInput.value = '0s';
+    endInput.value = `${Math.ceil(totalMediaDuration)}s`;
     setActivePreset(presetFull);
-    updateSegmentSummary();
+    updateTimelineUI();
   });
 
   preset30s.addEventListener('click', () => {
+    beginSeconds = 0;
+    endSeconds = Math.min(30, totalMediaDuration);
     beginInput.value = '0s';
-    endInput.value = '30s';
+    endInput.value = `${Math.round(endSeconds)}s`;
     setActivePreset(preset30s);
-    updateSegmentSummary();
+    updateTimelineUI();
   });
 
   preset60s.addEventListener('click', () => {
+    beginSeconds = 0;
+    endSeconds = Math.min(60, totalMediaDuration);
     beginInput.value = '0s';
-    endInput.value = '60s';
+    endInput.value = `${Math.round(endSeconds)}s`;
     setActivePreset(preset60s);
-    updateSegmentSummary();
+    updateTimelineUI();
   });
 
   presetClear.addEventListener('click', () => {
-    beginInput.value = '';
-    endInput.value = '';
+    beginSeconds = 0;
+    endSeconds = totalMediaDuration;
+    beginInput.value = '0s';
+    endInput.value = `${Math.ceil(totalMediaDuration)}s`;
     setActivePreset(presetFull);
-    updateSegmentSummary();
+    updateTimelineUI();
   });
 
   function setActivePreset(activeBtn) {
-    [presetFull, preset30s, preset60s, presetClear].forEach(btn => btn.classList.remove('active'));
+    [presetFull, preset30s, preset60s, presetClear].forEach(btn => btn?.classList.remove('active'));
     if (activeBtn) activeBtn.classList.add('active');
   }
 
   function updateSegmentSummary() {
-    const b = beginInput.value.trim();
-    const e = endInput.value.trim();
-    if (!b && !e) {
-      segmentSummary.textContent = 'Full Audio Track';
-    } else if (b && !e) {
-      segmentSummary.textContent = `From ${b} to End`;
-    } else if (!b && e) {
-      segmentSummary.textContent = `Start to ${e}`;
+    if (!totalMediaDuration) return;
+    const b = beginSeconds;
+    const e = endSeconds;
+    const len = formatSecondsToReadable(Math.max(0, e - b));
+    if (b <= 0.1 && e >= totalMediaDuration - 0.5) {
+      segmentSummary.textContent = `Full Track (${len})`;
     } else {
-      segmentSummary.textContent = `${b} → ${e}`;
+      segmentSummary.textContent = `${formatSecondsToMMSS(b)} → ${formatSecondsToMMSS(e)} (${len})`;
+    }
+    updateExtractButtonText(len);
+  }
+
+  function updateExtractButtonText(len) {
+    if (!extractBtnText) return;
+    const lengthStr = len || (totalMediaDuration ? formatSecondsToReadable(Math.max(0, endSeconds - beginSeconds)) : '');
+    const suffix = lengthStr ? ` (${lengthStr})` : '';
+    const isSaveAs = saveLocationToggle ? saveLocationToggle.checked : true;
+    if (isSaveAs) {
+      extractBtnText.textContent = `Extract & Save As...${suffix}`;
+    } else {
+      extractBtnText.textContent = `Extract MP3${suffix}`;
+    }
+  }
+
+  if (saveLocationToggle) {
+    saveLocationToggle.addEventListener('change', () => {
+      updateExtractButtonText();
+    });
+  }
+
+  if (saveOptionHint) {
+    if ('showSaveFilePicker' in window) {
+      saveOptionHint.textContent = 'native picker';
+    } else {
+      saveOptionHint.textContent = 'browser default';
     }
   }
 
   // =========================================================================
-  // Extraction Execution (AJAX fetch + Native Fallback)
+  // Waveform Extraction & Matte Canvas Rendering
+  // =========================================================================
+
+  async function extractWaveformFromFile(file) {
+    generatePlaceholderPeaks();
+    drawWaveform();
+
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+
+      const audioCtx = new AudioCtx();
+      const arrayBuffer = await file.slice(0, 15 * 1024 * 1024).arrayBuffer();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+      const rawData = audioBuffer.getChannelData(0);
+      const samples = 150;
+      const blockSize = Math.floor(rawData.length / samples);
+      const peaks = [];
+
+      for (let i = 0; i < samples; i++) {
+        const blockStart = blockSize * i;
+        let sum = 0;
+        for (let j = 0; j < blockSize; j++) {
+          sum += Math.abs(rawData[blockStart + j]);
+        }
+        peaks.push(sum / blockSize);
+      }
+
+      const max = Math.max(...peaks) || 1;
+      waveformPeaks = peaks.map(p => Math.max(0.1, p / max));
+      drawWaveform();
+      audioCtx.close();
+    } catch (_) {
+      // Keep clean simulated waveform if container cannot be decoded directly
+    }
+  }
+
+  function generatePlaceholderPeaks() {
+    waveformPeaks = [];
+    const count = 150;
+    for (let i = 0; i < count; i++) {
+      const base = Math.sin(i / 9) * 0.3 + 0.45;
+      const detail = Math.cos(i * 1.7) * 0.18;
+      waveformPeaks.push(Math.max(0.12, Math.min(0.92, base + detail)));
+    }
+  }
+
+  function drawWaveform() {
+    if (!waveformCanvas) return;
+    const rect = waveformContainer.getBoundingClientRect();
+    if (!rect.width) {
+      requestAnimationFrame(drawWaveform);
+      return;
+    }
+    const dpr = window.devicePixelRatio || 1;
+
+    waveformCanvas.width = rect.width * dpr;
+    waveformCanvas.height = rect.height * dpr;
+
+    const ctx = waveformCanvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+
+    const peaks = waveformPeaks;
+    if (!peaks || peaks.length === 0) return;
+
+    const barWidth = 2.5;
+    const gap = 2.5;
+    const totalBars = Math.floor(rect.width / (barWidth + gap));
+    const step = peaks.length / totalBars;
+
+    const startRatio = totalMediaDuration > 0 ? beginSeconds / totalMediaDuration : 0;
+    const endRatio = totalMediaDuration > 0 ? endSeconds / totalMediaDuration : 1;
+
+    const centerY = (rect.height - 14) / 2;
+    const maxBarHeight = rect.height - 28;
+
+    for (let i = 0; i < totalBars; i++) {
+      const barRatio = i / totalBars;
+      const peakIndex = Math.min(peaks.length - 1, Math.floor(i * step));
+      const val = peaks[peakIndex];
+      const barHeight = Math.max(3, val * maxBarHeight);
+      const x = i * (barWidth + gap);
+      const y = centerY - barHeight / 2;
+
+      const isSelected = barRatio >= startRatio && barRatio <= endRatio;
+      ctx.fillStyle = isSelected ? '#34d399' : '#3a3a36';
+
+      ctx.beginPath();
+      ctx.roundRect(x, y, barWidth, barHeight, 1);
+      ctx.fill();
+    }
+  }
+
+  function initTimeRuler(duration) {
+    timeRuler.innerHTML = '';
+    const ticks = 6;
+    for (let i = 0; i < ticks; i++) {
+      const sec = (duration / (ticks - 1)) * i;
+      const span = document.createElement('span');
+      span.textContent = formatSecondsToMMSS(sec);
+      timeRuler.appendChild(span);
+    }
+  }
+
+  window.addEventListener('resize', drawWaveform);
+
+  // =========================================================================
+  // Extraction Request
   // =========================================================================
 
   extractBtn.addEventListener('click', async () => {
     if (!currentFile) {
-      showToast('Please select or drop a video file first.', 'error');
+      showToast('Select a file first', 'error');
       return;
     }
 
-    const beginVal = beginInput.value.trim();
-    const endVal = endInput.value.trim();
+    stopTestingSelection();
 
-    // Prepare UI state
+    const beginVal = beginInput.value.trim() || '0s';
+    const endVal = endInput.value.trim() || `${Math.ceil(endSeconds)}s`;
+    const baseName = currentFile.name.substring(0, currentFile.name.lastIndexOf('.')) || currentFile.name;
+    const defaultFilename = `output_${baseName}.mp3`;
+
+    let fileHandle = null;
+    const wantSaveAs = saveLocationToggle ? saveLocationToggle.checked : true;
+
+    // Prompt user for save destination upfront using native OS file picker
+    if (wantSaveAs && 'showSaveFilePicker' in window) {
+      try {
+        fileHandle = await window.showSaveFilePicker({
+          suggestedName: defaultFilename,
+          types: [{
+            description: 'MP3 Audio File (*.mp3)',
+            accept: { 'audio/mpeg': ['.mp3'] }
+          }]
+        });
+      } catch (pickerErr) {
+        if (pickerErr.name === 'AbortError') {
+          // User cancelled native file dialog, cleanly exit
+          return;
+        }
+        console.warn('Native picker error:', pickerErr);
+      }
+    }
+
     trimWorkspace.classList.add('hidden');
     resultView.classList.add('hidden');
     processingView.classList.remove('hidden');
-    processingMsg.textContent = `Extracting audio from ${currentFile.name}...`;
+
+    if (fileHandle) {
+      processingMsg.textContent = `${currentFile.name} (${beginVal} → ${endVal}) → ${fileHandle.name}`;
+    } else {
+      processingMsg.textContent = `${currentFile.name} (${beginVal} → ${endVal})`;
+    }
+    setStatus('extracting');
 
     const formData = new FormData();
     formData.append('file', currentFile);
@@ -273,34 +824,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(errorText || `Server responded with status ${response.status}`);
+        throw new Error(errorText || `HTTP ${response.status}`);
       }
 
-      // Read audio blob
       const audioBlob = await response.blob();
-      const outputFilename = `output_${currentFile.name.substring(0, currentFile.name.lastIndexOf('.')) || currentFile.name}.mp3`;
+      lastExtractedBlob = audioBlob;
+      const targetFilename = fileHandle ? fileHandle.name : defaultFilename;
+      lastOutputFilename = targetFilename;
 
-      setupAudioResult(audioBlob, outputFilename);
-      showToast('Audio extracted successfully!', 'success');
+      if (fileHandle) {
+        try {
+          const writable = await fileHandle.createWritable();
+          await writable.write(audioBlob);
+          await writable.close();
+          setupAudioResult(audioBlob, targetFilename, true);
+          setStatus('saved');
+          showToast(`Saved to ${targetFilename}`);
+          return;
+        } catch (writeErr) {
+          console.error('Failed writing to fileHandle:', writeErr);
+          showToast('Could not save to chosen file, using preview', 'error');
+        }
+      }
 
+      setupAudioResult(audioBlob, targetFilename, false);
+      if (wantSaveAs && !fileHandle) {
+        downloadAudioLink.click();
+      }
+      setStatus('done');
+      showToast('Extraction complete');
     } catch (err) {
-      console.warn('Direct fetch failed or was blocked by browser:', err);
-      
-      // If error might be CORS (e.g. running from file:// or different port without proxy),
-      // we offer seamless native form download as an automatic fallback!
       handleFetchFallback(err, beginVal, endVal);
     }
   });
 
   function handleFetchFallback(error, beginVal, endVal) {
-    // Check if error is network/CORS related
     const isNetworkError = error instanceof TypeError || error.message.includes('Failed to fetch');
 
     if (isNetworkError) {
-      processingMsg.textContent = 'Triggering direct browser download via backend...';
-      
       try {
-        // Populate and submit native form
         const dt = new DataTransfer();
         dt.items.add(currentFile);
         formFileInput.files = dt.files;
@@ -313,22 +875,27 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
           processingView.classList.add('hidden');
           trimWorkspace.classList.remove('hidden');
-          showToast('Extraction started! Your browser will prompt to save the MP3.', 'success');
-        }, 1500);
-
-      } catch (nativeErr) {
+          setStatus('done');
+          showToast('Download started');
+        }, 1200);
+      } catch (_) {
         processingView.classList.add('hidden');
         trimWorkspace.classList.remove('hidden');
-        showToast(`Extraction failed: ${error.message}. Is backend running on localhost:8080?`, 'error');
+        setStatus('error');
+        showToast(`Failed: ${error.message}`, 'error');
       }
     } else {
       processingView.classList.add('hidden');
       trimWorkspace.classList.remove('hidden');
-      showToast(`Extraction error: ${error.message}`, 'error');
+      setStatus('error');
+      showToast(`Error: ${error.message}`, 'error');
     }
   }
 
-  function setupAudioResult(blob, filename) {
+  function setupAudioResult(blob, filename, alreadySaved = false) {
+    lastExtractedBlob = blob;
+    lastOutputFilename = filename;
+
     if (extractedAudioObjectURL) {
       URL.revokeObjectURL(extractedAudioObjectURL);
     }
@@ -336,18 +903,59 @@ document.addEventListener('DOMContentLoaded', () => {
     extractedAudio.src = extractedAudioObjectURL;
     extractedAudio.load();
 
-    resultFilenameDisplay.textContent = filename;
+    resultFilenameDisplay.textContent = alreadySaved
+      ? `${filename} (saved to chosen folder)`
+      : filename;
+
     downloadAudioLink.href = extractedAudioObjectURL;
     downloadAudioLink.download = filename;
 
-    // Show result view
+    if (saveResultText) {
+      saveResultText.textContent = alreadySaved ? 'Save Another Copy...' : 'Save As...';
+    }
+
     processingView.classList.add('hidden');
     resultView.classList.remove('hidden');
   }
 
   // =========================================================================
-  // Custom Audio Player Controls
+  // Result Player Controls
   // =========================================================================
+
+  if (saveResultBtn) {
+    saveResultBtn.addEventListener('click', async () => {
+      if (!lastExtractedBlob) return;
+
+      if ('showSaveFilePicker' in window) {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: lastOutputFilename || 'output.mp3',
+            types: [{
+              description: 'MP3 Audio File (*.mp3)',
+              accept: { 'audio/mpeg': ['.mp3'] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(lastExtractedBlob);
+          await writable.close();
+          showToast(`Saved to ${handle.name}`);
+          if (resultFilenameDisplay) {
+            resultFilenameDisplay.textContent = `${handle.name} (saved to chosen folder)`;
+          }
+          if (saveResultText) {
+            saveResultText.textContent = 'Save Another Copy...';
+          }
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') return;
+          console.warn('Picker error:', err);
+        }
+      }
+
+      // Fallback for browsers without showSaveFilePicker
+      downloadAudioLink.click();
+    });
+  }
 
   audioPlayBtn.addEventListener('click', () => {
     if (extractedAudio.paused) {
@@ -386,17 +994,27 @@ document.addEventListener('DOMContentLoaded', () => {
     volumeToggleBtn.style.opacity = extractedAudio.muted ? '0.4' : '1';
   });
 
-  resetWorkspaceBtn.addEventListener('click', () => {
-    resetAll();
+  backToTrimBtn.addEventListener('click', () => {
+    extractedAudio.pause();
+    iconPlay.classList.remove('hidden');
+    iconPause.classList.add('hidden');
+    resultView.classList.add('hidden');
+    trimWorkspace.classList.remove('hidden');
+    drawWaveform();
   });
 
-  // =========================================================================
-  // Reset & Cleanup Helpers
-  // =========================================================================
+  resetWorkspaceBtn.addEventListener('click', resetAll);
 
   function resetAll() {
+    stopTestingSelection();
     currentFile = null;
     fileInput.value = '';
+    totalMediaDuration = 0;
+    beginSeconds = 0;
+    endSeconds = 0;
+    waveformPeaks = [];
+    lastExtractedBlob = null;
+    lastOutputFilename = 'output.mp3';
 
     if (videoObjectURL) {
       URL.revokeObjectURL(videoObjectURL);
@@ -417,27 +1035,19 @@ document.addEventListener('DOMContentLoaded', () => {
     trimWorkspace.classList.add('hidden');
     processingView.classList.add('hidden');
     resultView.classList.add('hidden');
+    setStatus('ready');
   }
 
   // =========================================================================
-  // Utility Functions
+  // Formatting Utilities
   // =========================================================================
 
   function formatBytes(bytes, decimals = 1) {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return '0 B';
     const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-  }
-
-  function formatSecondsToTimestamp(totalSec) {
-    if (isNaN(totalSec) || totalSec < 0) return '00:00:00';
-    const hrs = Math.floor(totalSec / 3600);
-    const mins = Math.floor((totalSec % 3600) / 60);
-    const secs = Math.floor(totalSec % 60);
-    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
   }
 
   function formatSecondsToMMSS(totalSec) {
@@ -447,21 +1057,47 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
 
+  function formatSecondsToReadable(totalSec) {
+    if (isNaN(totalSec) || totalSec <= 0) return '0s';
+    const mins = Math.floor(totalSec / 60);
+    const secs = Math.round(totalSec % 60);
+    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  }
+
+  function parseDurationToSeconds(str) {
+    if (!str) return NaN;
+    str = str.trim().toLowerCase();
+    if (str.endsWith('s') && !str.includes('m')) {
+      const num = parseFloat(str.slice(0, -1));
+      if (!isNaN(num)) return num;
+    }
+    if (str.includes(':')) {
+      const parts = str.split(':').map(Number);
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        return parts[0] * 60 + parts[1];
+      }
+      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      }
+    }
+    const num = parseFloat(str);
+    return isNaN(num) ? NaN : num;
+  }
+
   function showToast(message, type = 'info') {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    
-    const iconSvg = type === 'error' 
+
+    const iconSvg = type === 'error'
       ? '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
-      : '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+      : '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
 
     toast.innerHTML = `${iconSvg}<span>${escapeHtml(message)}</span>`;
     toastContainer.appendChild(toast);
 
     setTimeout(() => {
-      toast.style.animation = 'slideOut 0.3s forwards';
-      setTimeout(() => toast.remove(), 300);
-    }, 4500);
+      toast.remove();
+    }, 3500);
   }
 
   function escapeHtml(str) {

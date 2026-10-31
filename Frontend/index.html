@@ -3,177 +3,244 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AuraAudio — High-Fidelity Audio Extractor</title>
-  <meta name="description" content="Extract crystal-clear MP3 audio from any video with millisecond-precise time trimming and instant in-browser preview.">
-  
-  <!-- Modern Typography from Google Fonts -->
+  <title>Aura</title>
+
+  <!-- JetBrains Mono Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  
-  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css?v=20261030_02">
 </head>
 <body>
-  <!-- Ambient background glow effects -->
-  <div class="ambient-glow glow-1" aria-hidden="true"></div>
-  <div class="ambient-glow glow-2" aria-hidden="true"></div>
-  <div class="ambient-glow glow-3" aria-hidden="true"></div>
 
-  <!-- Header / Navigation -->
-  <header class="app-header">
-    <div class="brand-container">
-      <div class="logo-orb">
-        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2v20M17 5v14M7 8v8M2 11v2M22 11v2" />
-        </svg>
+  <div class="app-shell">
+    <!-- Minimalist Top Bar -->
+    <header class="top-bar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Terracotta Trim Brackets -->
+            <path d="M7 4H4.5A1.5 1.5 0 0 0 3 5.5v13A1.5 1.5 0 0 0 4.5 20H7" stroke="#d97757" stroke-width="2"/>
+            <path d="M17 4h2.5A1.5 1.5 0 0 1 21 5.5v13a1.5 1.5 0 0 1-1.5 1.5H17" stroke="#d97757" stroke-width="2"/>
+            <!-- Emerald Extracted Waveform -->
+            <path d="M8.5 10v4M12 6.5v11M15.5 9v6" stroke="#34d399" stroke-width="2.2"/>
+          </svg>
+        </span>
+        <span class="brand-title">aura</span>
       </div>
-      <div class="brand-text">
-        <h1 class="brand-name">Aura<span>Audio</span></h1>
-        <p class="brand-tagline">Studio-Grade Audio Extraction</p>
-      </div>
-    </div>
-    
-    <div class="header-status">
-      <div class="status-pill" id="backend-status-pill">
+      <div class="status-badge" id="status-badge">
         <span class="status-dot"></span>
-        <span class="status-text">Backend: <strong>localhost:8080</strong></span>
+        <span id="status-text">ready</span>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <!-- Main Application Container -->
-  <main class="main-container">
+    <!-- Main Application Panel -->
+    <main class="workspace-panel">
 
-    <!-- Upload & Extraction Section -->
-    <section class="extractor-card glass-panel" id="main-card">
+      <!-- Upload / File Bar -->
+      <div class="upload-section" id="drop-zone" tabindex="0" role="button" aria-label="Select media file">
+        <input type="file" id="file-input" accept="video/*,audio/*" class="hidden" aria-hidden="true">
 
-      <!-- Step 1: Drop Zone -->
-      <div class="upload-zone" id="drop-zone" tabindex="0" role="button" aria-label="Upload video file">
-        <input type="file" id="file-input" accept="video/*,audio/*" class="file-input-hidden" aria-hidden="true">
-        
-        <div class="upload-prompt" id="upload-prompt">
-          <div class="upload-icon-container">
-            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Empty State Prompt -->
+        <div class="upload-empty" id="upload-prompt">
+          <div class="upload-icon-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="17 8 12 3 7 8" />
               <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
           </div>
-          <h2 class="upload-title">Drop your video here, or <span class="browse-link">browse</span></h2>
-          <p class="upload-subtitle">Supports MP4, MKV, MOV, WEBM, AVI, FLV & more (Any size)</p>
-          <div class="badge-row">
-            <span class="format-badge">MP4</span>
-            <span class="format-badge">MKV</span>
-            <span class="format-badge">MOV</span>
-            <span class="format-badge">WEBM</span>
-            <span class="format-badge">AVI</span>
-            <span class="format-badge format-badge-highlight">MP3 Output</span>
-          </div>
+          <p class="upload-heading">Drop video or audio file here, or <span class="upload-browse">browse</span></p>
+          <p class="upload-sub">mp4 · mkv · mov · webm · avi · mp3 · wav</p>
         </div>
 
-        <!-- Loaded File Meta Preview -->
-        <div class="file-loaded-view hidden" id="file-loaded-view">
-          <div class="file-icon-box">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <polygon points="10 11 10 17 15 14" />
-            </svg>
-          </div>
-          <div class="file-info-details">
-            <div class="file-name-row">
-              <span class="file-name" id="file-name-text">video.mp4</span>
-              <span class="file-size-badge" id="file-size-text">0 MB</span>
+        <!-- Loaded File Bar -->
+        <div class="file-bar hidden" id="file-loaded-view">
+          <div class="file-bar-left">
+            <span class="file-badge-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path d="M9 18V5l12-2v13"/>
+                <circle cx="6" cy="18" r="3"/>
+                <circle cx="18" cy="16" r="3"/>
+              </svg>
+            </span>
+            <div class="file-bar-meta">
+              <span class="file-name" id="file-name-text">input.mp4</span>
+              <span class="file-size" id="file-size-text">0 MB</span>
             </div>
-            <span class="file-meta-hint" id="file-meta-text">Ready to extract</span>
           </div>
-          <button type="button" class="btn-icon" id="remove-file-btn" title="Remove file" aria-label="Remove file">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
+          <div class="file-bar-actions">
+            <button type="button" class="btn-ghost btn-sm" id="change-file-btn">Change</button>
+            <button type="button" class="btn-icon-only" id="remove-file-btn" title="Remove file" aria-label="Remove file">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
-      <!-- Video Preview & Trim Workspace (shown after file selection) -->
+      <!-- Hidden Background Media Element (No native browser controls shown) -->
+      <video id="video-preview" preload="metadata" playsinline class="hidden" aria-hidden="true"></video>
+
+      <!-- Trimming & Preview Workspace -->
       <div class="trim-workspace hidden" id="trim-workspace">
-        
-        <!-- Video Player Display -->
-        <div class="video-preview-wrapper">
-          <video id="video-preview" controls preload="metadata" playsinline class="video-player"></video>
-          <div class="video-overlay-badge">
-            <span class="live-time" id="current-playhead-display">00:00:00</span> / 
-            <span class="total-duration" id="total-duration-display">00:00:00</span>
-          </div>
-        </div>
 
-        <!-- Time Trimming Controls -->
-        <div class="trim-controls-card">
-          <div class="trim-header">
-            <div class="trim-title-group">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="trim-icon">
-                <circle cx="6" cy="6" r="3"></circle>
-                <circle cx="6" cy="18" r="3"></circle>
-                <line x1="20" y1="4" x2="8.12" y2="15.88"></line>
-                <line x1="14.47" y1="14.48" x2="20" y2="20"></line>
-                <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
+        <!-- Custom Transport & Readout Bar -->
+        <div class="transport-bar">
+          <div class="transport-controls">
+            <button type="button" class="btn-transport-primary" id="play-selection-btn" title="Play or pause selected region (Space)">
+              <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="6 4 20 12 6 20 6 4"></polygon>
               </svg>
-              <h3>Trimming Interval <span class="optional-tag">(Optional)</span></h3>
-            </div>
-            <div class="segment-summary" id="segment-summary">
-              Full Audio Track
-            </div>
+              <svg class="icon-pause hidden" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+              </svg>
+              <span id="play-selection-label">Play Selection</span>
+            </button>
+
+            <button type="button" class="btn-transport" id="loop-selection-btn" title="Loop selected range">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path d="M17 1l4 4-4 4"/>
+                <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                <path d="M7 23l-4-4 4-4"/>
+                <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+              </svg>
+              <span>Loop</span>
+            </button>
+
+            <button type="button" class="btn-transport btn-icon-sq" id="mute-preview-btn" title="Mute / Unmute">
+              <svg class="icon-vol-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              </svg>
+              <svg class="icon-vol-off hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <line x1="23" y1="9" x2="17" y2="15"></line>
+                <line x1="17" y1="9" x2="23" y2="15"></line>
+              </svg>
+            </button>
           </div>
 
-          <!-- Dual Range Sliders & Inputs -->
-          <div class="trim-inputs-grid">
-            <!-- Begin Time Box -->
-            <div class="time-input-group">
-              <label for="begin-input">
-                <span class="label-dot start-dot"></span> Start Position
-              </label>
-              <div class="input-with-action">
-                <input type="text" id="begin-input" placeholder="e.g. 0s or 00:00" value="" autocomplete="off">
-                <button type="button" class="btn-micro" id="set-begin-playhead-btn" title="Set to current video timestamp">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polyline points="12 6 12 12 16 14"></polyline>
-                  </svg>
-                  <span>Use Playhead</span>
-                </button>
-              </div>
+          <div class="transport-readout">
+            <div class="readout-item">
+              <span class="readout-label">playhead</span>
+              <span class="readout-val"><strong id="current-playhead-display">00:00</strong> / <span id="total-duration-display">00:00</span></span>
             </div>
-
-            <!-- End Time Box -->
-            <div class="time-input-group">
-              <label for="end-input">
-                <span class="label-dot end-dot"></span> End Position
-              </label>
-              <div class="input-with-action">
-                <input type="text" id="end-input" placeholder="e.g. 1m30s or leave blank" value="" autocomplete="off">
-                <button type="button" class="btn-micro" id="set-end-playhead-btn" title="Set to current video timestamp">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polyline points="12 6 12 12 16 14"></polyline>
-                  </svg>
-                  <span>Use Playhead</span>
-                </button>
-              </div>
+            <div class="readout-divider"></div>
+            <div class="readout-item">
+              <span class="readout-label">clip</span>
+              <span class="readout-val"><strong id="range-duration-text">00:00 → 00:00</strong> <span class="clip-len-tag" id="range-length-text">0s</span></span>
             </div>
-          </div>
-
-          <!-- Quick Presets -->
-          <div class="presets-row">
-            <span class="presets-label">Presets:</span>
-            <button type="button" class="preset-btn active" id="preset-full">Whole Track</button>
-            <button type="button" class="preset-btn" id="preset-30s">First 30s</button>
-            <button type="button" class="preset-btn" id="preset-60s">First 60s</button>
-            <button type="button" class="preset-btn" id="preset-clear">Reset</button>
           </div>
         </div>
 
-        <!-- Hidden Native Form for Fallback / Zero-CORS Guarantee -->
+        <!-- Dual-Pointer Timeline Track -->
+        <div class="timeline-box" id="timeline-trimmer-wrapper">
+          <div class="slider-track-container" id="waveform-container">
+            <canvas id="waveform-canvas" class="waveform-canvas"></canvas>
+
+            <!-- Unselected Dimmed Overlays -->
+            <div class="dimmed-region dimmed-left" id="dimmed-left"></div>
+            <div class="dimmed-region dimmed-right" id="dimmed-right"></div>
+
+            <!-- Active Selection Window (Draggable) -->
+            <div class="selected-region" id="selected-region" title="Drag to slide window, or click to seek">
+              <span class="window-drag-pill">drag window</span>
+            </div>
+
+            <!-- POINTER 1: START -->
+            <div class="drag-pointer pointer-start" id="handle-left" tabindex="0" role="slider" aria-label="Start pointer">
+              <div class="pointer-head">
+                <span class="pointer-name">START</span>
+                <span class="pointer-time" id="tooltip-left">00:00</span>
+              </div>
+              <div class="pointer-stem"></div>
+              <div class="pointer-thumb">
+                <span>⋮</span>
+              </div>
+            </div>
+
+            <!-- POINTER 2: END -->
+            <div class="drag-pointer pointer-end" id="handle-right" tabindex="0" role="slider" aria-label="End pointer">
+              <div class="pointer-head">
+                <span class="pointer-name">END</span>
+                <span class="pointer-time" id="tooltip-right">00:00</span>
+              </div>
+              <div class="pointer-stem"></div>
+              <div class="pointer-thumb">
+                <span>⋮</span>
+              </div>
+            </div>
+
+            <!-- Playhead Needle -->
+            <div class="timeline-playhead" id="timeline-playhead">
+              <div class="playhead-cap"></div>
+              <div class="playhead-line"></div>
+            </div>
+
+            <!-- Bottom Time Ruler -->
+            <div class="time-ruler" id="time-ruler"></div>
+          </div>
+        </div>
+
+        <!-- Precision Inputs & Presets Bar -->
+        <div class="controls-grid">
+          <div class="field-group">
+            <div class="field-header">
+              <label for="begin-input">
+                <span class="dot dot-start"></span>start_time
+              </label>
+              <div class="nudge-group">
+                <button type="button" class="btn-nudge" id="nudge-start-minus" title="-1 second">-1s</button>
+                <button type="button" class="btn-nudge" id="nudge-start-plus" title="+1 second">+1s</button>
+                <button type="button" class="btn-nudge" id="set-begin-playhead-btn" title="Set start to current playhead">use playhead</button>
+              </div>
+            </div>
+            <input type="text" id="begin-input" class="mono-input" placeholder="0s" value="0s" autocomplete="off">
+          </div>
+
+          <div class="field-group">
+            <div class="field-header">
+              <label for="end-input">
+                <span class="dot dot-end"></span>end_time
+              </label>
+              <div class="nudge-group">
+                <button type="button" class="btn-nudge" id="nudge-end-minus" title="-1 second">-1s</button>
+                <button type="button" class="btn-nudge" id="nudge-end-plus" title="+1 second">+1s</button>
+                <button type="button" class="btn-nudge" id="set-end-playhead-btn" title="Set end to current playhead">use playhead</button>
+              </div>
+            </div>
+            <input type="text" id="end-input" class="mono-input" placeholder="e.g. 90s" value="" autocomplete="off">
+          </div>
+        </div>
+
+        <!-- Presets & Summary Row -->
+        <div class="presets-bar">
+          <div class="presets-list">
+            <span class="presets-title">range:</span>
+            <button type="button" class="preset-chip active" id="preset-full">full track</button>
+            <button type="button" class="preset-chip" id="preset-30s">first 30s</button>
+            <button type="button" class="preset-chip" id="preset-60s">first 60s</button>
+            <button type="button" class="preset-chip" id="preset-clear">reset</button>
+          </div>
+          <span class="segment-summary" id="segment-summary">Full Track</span>
+        </div>
+
+        <!-- Destination Option Row -->
+        <div class="save-options-bar">
+          <label class="save-option-label" for="save-location-toggle" title="Select custom folder and filename when extracting">
+            <input type="checkbox" id="save-location-toggle" checked>
+            <span class="custom-checkbox"></span>
+            <span class="save-option-text">choose save location (Save As...)</span>
+          </label>
+          <span class="save-option-tag" id="save-option-hint">native picker</span>
+        </div>
+
+        <!-- Hidden Fallback Form -->
         <form id="native-extract-form" action="/extract" method="POST" enctype="multipart/form-data" target="download-frame" class="hidden">
           <input type="file" name="file" id="form-file-input">
           <input type="text" name="begin" id="form-begin-input">
@@ -181,139 +248,90 @@
         </form>
         <iframe name="download-frame" id="download-frame" class="hidden" title="Download Receiver"></iframe>
 
-        <!-- Action Trigger Button -->
-        <div class="action-cta-wrapper">
-          <button type="button" class="btn-primary" id="extract-btn">
-            <div class="btn-glow"></div>
-            <span class="btn-content">
-              <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 18V5l12-2v13" />
-                <circle cx="6" cy="18" r="3" />
-                <circle cx="18" cy="16" r="3" />
-              </svg>
-              <span class="btn-text">Extract Audio (MP3)</span>
-            </span>
+        <!-- Primary Action Button -->
+        <button type="button" class="btn-extract" id="extract-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span id="extract-btn-text">Extract & Save As...</span>
+        </button>
+      </div>
+
+      <!-- Processing View -->
+      <div class="processing-state hidden" id="processing-view">
+        <div class="loader-line"></div>
+        <div class="processing-row">
+          <span class="spinner-dot"></span>
+          <div>
+            <p class="processing-title">Extracting audio...</p>
+            <p class="processing-sub" id="processing-msg">Processing selected range</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Extracted Result View -->
+      <div class="result-state hidden" id="result-view">
+        <div class="result-header">
+          <div class="result-title-group">
+            <span class="result-check">✓</span>
+            <div>
+              <h3 class="result-heading">Extraction Complete</h3>
+              <p class="result-filename" id="result-filename-display">output.mp3</p>
+            </div>
+          </div>
+          <button type="button" class="btn-ghost btn-sm" id="reset-workspace-btn">New File</button>
+        </div>
+
+        <!-- Custom Minimal Audio Player for Result -->
+        <div class="result-player">
+          <audio id="extracted-audio" preload="auto" class="hidden"></audio>
+
+          <button type="button" class="btn-result-play" id="audio-play-btn" aria-label="Play extracted audio">
+            <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="6 4 20 12 6 20 6 4"></polygon>
+            </svg>
+            <svg class="icon-pause hidden" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="4" width="4" height="16"></rect>
+              <rect x="14" y="4" width="4" height="16"></rect>
+            </svg>
+          </button>
+
+          <span class="result-time" id="audio-current-time">00:00</span>
+
+          <input type="range" class="result-seek" id="audio-seek-slider" min="0" max="100" value="0" step="0.1">
+
+          <span class="result-time" id="audio-total-time">00:00</span>
+
+          <button type="button" class="btn-icon-only" id="volume-toggle-btn" aria-label="Toggle mute">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
           </button>
         </div>
-      </div>
 
-      <!-- Processing State Modal/Bar -->
-      <div class="processing-view hidden" id="processing-view">
-        <div class="spinner-container">
-          <div class="pulsing-orb"></div>
-          <div class="audio-wave-anim">
-            <span class="bar bar-1"></span>
-            <span class="bar bar-2"></span>
-            <span class="bar bar-3"></span>
-            <span class="bar bar-4"></span>
-            <span class="bar bar-5"></span>
-            <span class="bar bar-6"></span>
-            <span class="bar bar-7"></span>
-          </div>
-        </div>
-        <h3 class="processing-title">Extracting Audio Track...</h3>
-        <p class="processing-subtitle" id="processing-msg">FFmpeg is transcoding your audio with high-precision lame codec...</p>
-        <div class="progress-bar-track">
-          <div class="progress-bar-fill" id="progress-bar-fill"></div>
-        </div>
-      </div>
-
-      <!-- Success / Audio Player Card -->
-      <div class="result-view hidden" id="result-view">
-        <div class="success-banner">
-          <div class="success-icon-box">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-              <polyline points="22 4 12 14.01 9 11.01"></polyline>
-            </svg>
-          </div>
-          <div class="success-details">
-            <h3 class="success-title">Audio Extracted Successfully!</h3>
-            <p class="success-subtitle" id="result-filename-display">output_audio.mp3</p>
-          </div>
-        </div>
-
-        <!-- Custom Audio Player Card -->
-        <div class="audio-player-card">
-          <audio id="extracted-audio" preload="auto"></audio>
-          
-          <div class="player-top-row">
-            <button type="button" class="btn-play-pause" id="audio-play-btn" aria-label="Play audio">
-              <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-              </svg>
-              <svg class="icon-pause hidden" viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6" y="4" width="4" height="16"></rect>
-                <rect x="14" y="4" width="4" height="16"></rect>
-              </svg>
-            </button>
-            
-            <div class="player-timeline-box">
-              <div class="timeline-meta">
-                <span class="audio-time-current" id="audio-current-time">00:00</span>
-                <span class="audio-format-pill">MP3 • 320kbps</span>
-                <span class="audio-time-total" id="audio-total-time">00:00</span>
-              </div>
-              <input type="range" class="audio-progress-slider" id="audio-seek-slider" min="0" max="100" value="0" step="0.1">
-            </div>
-
-            <div class="volume-container">
-              <button type="button" class="btn-volume" id="volume-toggle-btn" aria-label="Toggle mute">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Result Action Buttons -->
-        <div class="result-actions-row">
-          <a id="download-audio-link" class="btn-download" download="extracted_audio.mp3">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="download-icon">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            <span>Download MP3 File</span>
-          </a>
-          <button type="button" class="btn-secondary" id="reset-workspace-btn">
+        <div class="result-actions">
+          <button type="button" class="btn-extract" id="save-result-btn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="1 4 1 10 7 10"></polyline>
-              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
-            <span>Extract Another</span>
+            <span id="save-result-text">Save As...</span>
           </button>
+          <a id="download-audio-link" class="hidden" download="extracted.mp3"></a>
+          <button type="button" class="btn-secondary-action" id="back-to-trim-btn">Adjust Trim</button>
         </div>
       </div>
 
-    </section>
+    </main>
+  </div>
 
-    <!-- Feature Highlights -->
-    <section class="features-grid">
-      <div class="feature-item glass-mini">
-        <div class="feature-icon-badge">⚡</div>
-        <h4>FFmpeg Powered</h4>
-        <p>Uses native FFmpeg libmp3lame backend for lossless decoding and rapid extraction.</p>
-      </div>
-      <div class="feature-item glass-mini">
-        <div class="feature-icon-badge">🎯</div>
-        <h4>Millisecond Trimming</h4>
-        <p>Specify exact begin/end duration strings ("5s", "1m30s") or scrub visually with video playhead.</p>
-      </div>
-      <div class="feature-item glass-mini">
-        <div class="feature-icon-badge">🔒</div>
-        <h4>100% Private & Clean</h4>
-        <p>Runs locally on your machine. Temporary workspace files are automatically scrubbed on completion.</p>
-      </div>
-    </section>
-  </main>
-
-  <!-- Toast Notification Container -->
+  <!-- Toast Notifications -->
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
-  <!-- JavaScript Logic -->
-  <script src="app.js"></script>
+  <script src="app.js?v=20261030_02"></script>
 </body>
 </html>

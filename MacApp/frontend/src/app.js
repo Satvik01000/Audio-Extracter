@@ -1,5 +1,5 @@
 /**
- * Audio Extractor — macOS Desktop Application Frontend
+ * Decibel — macOS Desktop Application Frontend
  * Clean matte dark theme, JetBrains Mono font, pure Vanilla JS.
  * Integrated with Wails v2 native Go runtime & WKWebView.
  */

@@ -21,7 +21,7 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:     "Aura",
+		Title:     "Decibel",
 		Width:     960,
 		Height:    780,
 		MinWidth:  780,
@@ -56,8 +56,8 @@ func main() {
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,
 			About: &mac.AboutInfo{
-				Title:   "Aura",
-				Message: "Studio-grade minimalist audio extraction",
+				Title:   "Decibel",
+				Message: "Studio-grade minimalist audio utility",
 				Icon:    appIcon,
 			},
 		},

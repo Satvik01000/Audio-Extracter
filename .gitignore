@@ -1,0 +1,53 @@
+# macOS
+.DS_Store
+**/.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# IDEs & Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work.sum
+/bin/
+/dist/
+
+# Wails / MacApp Build Artifacts
+MacApp/build/bin/
+build/bin/
+*.app/
+MacApp/build/windows/installer/wails_tools.nsh
+MacApp/build/windows/installer/tmp/
+
+# Node (if used by tooling)
+node_modules/
+
+# Environment & Logs
+.env
+.env.*
+*.log
+tmp/
+
+# Local Media & Extracted Test Files
+*.mp3
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.wav
+*.m4a
+*.flac
+

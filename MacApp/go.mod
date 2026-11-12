@@ -1,4 +1,4 @@
-module AudioExtractor
+module decibel
 
 go 1.26.3
 
